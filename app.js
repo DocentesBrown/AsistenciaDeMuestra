@@ -31,9 +31,14 @@ function todayStr(d=new Date()){
 function Header({ selectedDate, onChangeDate }) {
   return e('header',
     { className: 'w-full p-4 md:p-6 bg-slate-900 text-white flex items-center justify-between sticky top-0 z-10 shadow' },
-    e('div', { className:'flex items-center gap-3' },
+    e('div', { className:'flex flex-col gap-0.5' },
       e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Asistencia de Estudiantes'),
-      e('span', { className:'text-xs md:text-sm opacity-80 italic' }, '(offline, PWA)')
+      e('a', {
+        href:'https://www.instagram.com/docentesbrown',
+        target:'_blank',
+        rel:'noopener',
+        className:'text-xs md:text-sm opacity-80 underline'
+      }, 'creado por @docentesbrown')
     ),
     e('div', { className:'flex items-center gap-2' },
       e('label', { className:'text-sm opacity-80 hidden md:block' }, 'Fecha:'),
@@ -46,6 +51,7 @@ function Header({ selectedDate, onChangeDate }) {
     )
   );
 }
+
 
 function EmptyState({ onCreateCourse }) {
   return e('div', { className:'p-6 md:p-10 text-center' },
@@ -90,12 +96,11 @@ function CoursesBar({ courses, selectedCourseId, onSelect, onCreate, onRename, o
 }
 
 function StudentsTable({ students, onAdd, onEdit, onDelete }) {
+  const [showAbsences, setShowAbsences] = useState(null);
   const [name, setName] = useState('');
   const sorted = useMemo(() => Object.values(students).sort((a,b)=>a.name.localeCompare(b.name)), [students]);
 
-  
-  const [showAbsences, setShowAbsences] = useState(null);
-return e('div', { className:'p-4 md:p-6' },
+  return e('div', { className:'p-4 md:p-6' },
     e('div', { className:'flex flex-col md:flex-row gap-2 md:items-end mb-4' },
       e('div', { className:'flex-1' },
         e('label', { className:'block text-sm font-medium mb-1' }, 'Agregar estudiante'),
@@ -158,11 +163,13 @@ return e('div', { className:'p-4 md:p-6' },
           )
         )
       )
-    
+    )
+
       ,
       showAbsences ? e('div', { className:'fixed inset-0 bg-black/40 flex items-center justify-center z-50' },
         e('div', { className:'bg-white rounded-2xl shadow-xl max-w-md w-full p-4' },
           (function(){
+            const sorted = Object.values(students).sort((a,b)=>a.name.localeCompare(b.name));
             const s = sorted.find(x=>x.id===showAbsences);
             const fechas = s ? (s.history||[]).filter(h=>h.status==='absent').map(h=>h.date).sort() : [];
             return e(React.Fragment, null,
@@ -178,7 +185,6 @@ return e('div', { className:'p-4 md:p-6' },
           })()
         )
       ) : null
-)
   );
 }
 
@@ -276,29 +282,6 @@ function RollCallCard({ students, onMark, onUndo, selectedDate }) {
           )
     )
   );
-
-function Footer({ onExport, onImport, onExportXLSX }){
-  const fileRef = React.useRef(null);
-  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
-  function handleFile(ev){
-    const file = ev.target.files && ev.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { try { onImport(reader.result); } finally { ev.target.value=''; } };
-    reader.readAsText(file);
-  }
-  return e('footer', { className:'p-4 md:p-6 border-t bg-white sticky bottom-0' },
-    e('div', { className:'flex flex-col md:flex-row gap-2 items-stretch md:items-center justify-between' },
-      e('div', { className:'text-sm text-slate-600' }, 'Acciones de respaldo y migración'),
-      e('div', { className:'flex gap-2' },
-        e('button', { onClick:onExport, className:'px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white' }, 'Exportar JSON'),
-        e('button', { onClick:onExportXLSX, className:'px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white' }, 'Exportar XLSX'),
-        e('button', { onClick:triggerImport, className:'px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200' }, 'Importar'),
-        e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
-      )
-    )
-  );
-}
 }
 
 function App() {
@@ -308,6 +291,77 @@ function App() {
   const selectedDate = state.selectedDate || todayStr();
 
   useEffect(() => { saveState(state); }, [state]);
+
+  function exportState(){
+    try{
+      const data = JSON.stringify(state, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'asistencia_backup.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch(err){
+      alert('No se pudo exportar: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  function importStateFromText(text){
+    try{
+      const parsed = JSON.parse(text);
+      setState({
+        courses: parsed.courses || {},
+        selectedCourseId: parsed.selectedCourseId || null,
+        selectedDate: parsed.selectedDate || todayStr()
+      });
+      alert('Importación exitosa');
+    } catch(err){
+      alert('Archivo inválido. Debe ser un JSON exportado por esta app.');
+    }
+  }
+
+  function exportXLSX(){
+    try{
+      if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX no disponible'); return; }
+      const course = selectedCourse;
+      if (!course){ alert('Elegí un curso primero'); return; }
+
+      const datesSet = new Set();
+      Object.values(course.students).forEach(s => {
+        (s.history||[]).forEach(h => datesSet.add(h.date));
+      });
+      const dates = Array.from(datesSet).sort();
+
+      const rows = [];
+      rows.push(['Estudiante'].concat(dates));
+
+      Object.values(course.students).sort((a,b)=>a.name.localeCompare(b.name)).forEach(s => {
+        const map = {}; (s.history||[]).forEach(h => map[h.date]=h.status);
+        const row = [s.name].concat(dates.map(d => map[d]==='present'?'P':map[d]==='absent'?'A':map[d]==='later'?'R':''));
+        rows.push(row);
+      });
+
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, course.name.slice(0,31));
+      const wbout = XLSX.write(wb, {bookType:'xlsx', type:'array'});
+      const blob = new Blob([wbout], {type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `asistencia_${(course.name||'curso').replace(/\s+/g,'_')}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch(err){
+      alert('No se pudo exportar XLSX: ' + (err && err.message ? err.message : err));
+    }
+  }
+
 
   const selectedCourse = selectedCourseId ? courses[selectedCourseId] : null;
 
@@ -460,10 +514,34 @@ function App() {
                   onUndo:undoAttendance
                 }),
                 e(StudentsTable, { students:selectedCourse.students, onAdd:addStudent, onEdit:editStudent, onDelete:deleteStudent })
+                e(Footer, { onExport:exportState, onImport:importStateFromText, onExportXLSX:exportXLSX }),
               )
         )
   );
 }
+
+
+function Footer({ onExport, onImport, onExportXLSX }){
+  const fileRef = React.useRef(null);
+  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
+  function handleFile(ev){
+    const file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { onImport(reader.result); } finally { ev.target.value=''; } };
+    reader.readAsText(file);
+  }
+  return e('footer', { className:'p-4 md:p-6 border-t bg-white sticky bottom-0' },
+    e('div', { className:'flex flex-col md:flex-row gap-2 items-stretch md:items-center justify-between' },
+      e('div', { className:'text-sm text-slate-600' }, 'Respaldo y migración'),
+      e('div', { className:'flex gap-2' },
+        e('button', { onClick:onExport, className:'px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white' }, 'Exportar JSON'),
+        e('button', { onClick:onExportXLSX, className:'px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white' }, 'Exportar XLSX'),
+        e('button', { onClick:triggerImport, className:'px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200' }, 'Importar'),
+        e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
+      )
+    )
+  );}
 
 // ===== Render =====
 const root = ReactDOM.createRoot(document.getElementById('root'));
