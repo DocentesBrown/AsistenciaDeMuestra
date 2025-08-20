@@ -1,25 +1,13 @@
-const CACHE = 'agenda-cache-v1';
-self.addEventListener('install', (e) => {
-  e.waitUntil((async () => {
-    const cache = await caches.open(CACHE);
-    await cache.addAll(['./']);
-    self.skipWaiting();
-  })());
+self.addEventListener("install", e => {
+  e.waitUntil(
+    caches.open("agenda-cache").then(cache => {
+      return cache.addAll(["/", "/index.html", "/manifest.json"]);
+    })
+  );
 });
-self.addEventListener('activate', (e) => {
-  e.waitUntil(self.clients.claim());
-});
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
-  e.respondWith((async () => {
-    const cached = await caches.match(req);
-    try {
-      const fresh = await fetch(req);
-      const cache = await caches.open(CACHE);
-      cache.put(req, fresh.clone());
-      return fresh;
-    } catch (err) {
-      return cached || Response.error();
-    }
-  })());
+
+self.addEventListener("fetch", e => {
+  e.respondWith(
+    caches.match(e.request).then(response => response || fetch(e.request))
+  );
 });
