@@ -28,12 +28,30 @@ function todayStr(d=new Date()){
 }
 
 // ===== UI Components =====
-function Header({ selectedDate, onChangeDate }) {
+
+function Header({ selectedDate, onChangeDate, onExport, onImport }) {
+  const fileRef = React.useRef(null);
+  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
+  function handleFile(ev){
+    const file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { onImport(reader.result); } finally { ev.target.value=''; } };
+    reader.readAsText(file);
+  }
+
   return e('header',
     { className: 'w-full p-4 md:p-6 bg-slate-900 text-white flex items-center justify-between sticky top-0 z-10 shadow' },
-    e('div', { className:'flex items-center gap-3' },
-      e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Agenda de Estudiantes'),
-      e('span', { className:'text-xs md:text-sm opacity-80 italic' }, '(offline, PWA)')
+    e('div', { className:'flex flex-col gap-1' },
+      e('div', { className:'flex items-center gap-3' },
+        e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Agenda de Estudiantes')
+      ),
+      e('a', {
+          href:'https://www.instagram.com/docentesbrown',
+          target:'_blank',
+          rel:'noopener',
+          className:'text-xs md:text-sm opacity-80 underline'
+        }, 'creado por @docentesbrown')
     ),
     e('div', { className:'flex items-center gap-2' },
       e('label', { className:'text-sm opacity-80 hidden md:block' }, 'Fecha:'),
@@ -42,10 +60,14 @@ function Header({ selectedDate, onChangeDate }) {
         value:selectedDate,
         onChange:(ev)=>onChangeDate(ev.target.value),
         className:'text-slate-900 rounded-md px-2 py-1 text-sm'
-      })
+      }),
+      e('button', { onClick:onExport, className:'ml-2 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm' }, 'Exportar'),
+      e('button', { onClick:triggerImport, className:'px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 text-sm' }, 'Importar'),
+      e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
     )
   );
 }
+
 
 function EmptyState({ onCreateCourse }) {
   return e('div', { className:'p-6 md:p-10 text-center' },
@@ -384,8 +406,40 @@ function App() {
     return Object.values(selectedCourse.students).sort((a,b)=>a.name.localeCompare(b.name));
   }, [selectedCourse]);
 
+
+  function exportState(){
+    try{
+      const data = JSON.stringify(state, null, 2);
+      const blob = new Blob([data], {type:'application/json'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'agenda_backup.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      alert('Exportación lista: se descargó agenda_backup.json');
+    } catch(err){
+      alert('No se pudo exportar: ' + (err && err.message ? err.message : err));
+    }
+  }
+  function importStateFromText(text){
+    try{
+      const parsed = JSON.parse(text);
+      const next = {
+        courses: parsed && typeof parsed.courses==='object' ? parsed.courses : {},
+        selectedCourseId: parsed && parsed.selectedCourseId ? parsed.selectedCourseId : null,
+        selectedDate: parsed && parsed.selectedDate ? parsed.selectedDate : todayStr()
+      };
+      setState(next);
+      alert('Importación exitosa. ¡Listo para usar!');
+    } catch(err){
+      alert('Archivo inválido. Debe ser un JSON exportado por esta app.');
+    }
+  }
   return e('div', null,
-    e(Header, { selectedDate, onChangeDate:setSelectedDate }),
+    e(Header, { selectedDate, onChangeDate:setSelectedDate, onExport:exportState, onImport:importStateFromText }),
     Object.keys(courses).length === 0
       ? e(EmptyState, { onCreateCourse:createCourse })
       : e(React.Fragment, null,
