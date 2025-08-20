@@ -28,30 +28,12 @@ function todayStr(d=new Date()){
 }
 
 // ===== UI Components =====
-
-function Header({ selectedDate, onChangeDate, onExport, onImport }) {
-  const fileRef = React.useRef(null);
-  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
-  function handleFile(ev){
-    const file = ev.target.files && ev.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { try { onImport(reader.result); } finally { ev.target.value=''; } };
-    reader.readAsText(file);
-  }
-
+function Header({ selectedDate, onChangeDate }) {
   return e('header',
     { className: 'w-full p-4 md:p-6 bg-slate-900 text-white flex items-center justify-between sticky top-0 z-10 shadow' },
-    e('div', { className:'flex flex-col gap-1' },
-      e('div', { className:'flex items-center gap-3' },
-        e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Agenda de Estudiantes')
-      ),
-      e('a', {
-          href:'https://www.instagram.com/docentesbrown',
-          target:'_blank',
-          rel:'noopener',
-          className:'text-xs md:text-sm opacity-80 underline'
-        }, 'creado por @docentesbrown')
+    e('div', { className:'flex items-center gap-3' },
+      e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Asistencia de Estudiantes'),
+      e('span', { className:'text-xs md:text-sm opacity-80 italic' }, '(offline, PWA)')
     ),
     e('div', { className:'flex items-center gap-2' },
       e('label', { className:'text-sm opacity-80 hidden md:block' }, 'Fecha:'),
@@ -60,14 +42,10 @@ function Header({ selectedDate, onChangeDate, onExport, onImport }) {
         value:selectedDate,
         onChange:(ev)=>onChangeDate(ev.target.value),
         className:'text-slate-900 rounded-md px-2 py-1 text-sm'
-      }),
-      e('button', { onClick:onExport, className:'ml-2 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-600 text-white text-sm' }, 'Exportar'),
-      e('button', { onClick:triggerImport, className:'px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 text-sm' }, 'Importar'),
-      e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
+      })
     )
   );
 }
-
 
 function EmptyState({ onCreateCourse }) {
   return e('div', { className:'p-6 md:p-10 text-center' },
@@ -115,7 +93,9 @@ function StudentsTable({ students, onAdd, onEdit, onDelete }) {
   const [name, setName] = useState('');
   const sorted = useMemo(() => Object.values(students).sort((a,b)=>a.name.localeCompare(b.name)), [students]);
 
-  return e('div', { className:'p-4 md:p-6' },
+  
+  const [showAbsences, setShowAbsences] = useState(null);
+return e('div', { className:'p-4 md:p-6' },
     e('div', { className:'flex flex-col md:flex-row gap-2 md:items-end mb-4' },
       e('div', { className:'flex-1' },
         e('label', { className:'block text-sm font-medium mb-1' }, 'Agregar estudiante'),
@@ -137,7 +117,7 @@ function StudentsTable({ students, onAdd, onEdit, onDelete }) {
             e('th', { className:'p-3 text-sm' }, '% Asistencia'),
             e('th', { className:'p-3 text-sm' }, 'Presente'),
             e('th', { className:'p-3 text-sm' }, 'Ausente'),
-            e('th', { className:'p-3 text-sm' }, 'Revisar'),
+            
             e('th', { className:'p-3 text-sm' })
           )
         ),
@@ -157,8 +137,16 @@ function StudentsTable({ students, onAdd, onEdit, onDelete }) {
                   ),
                   e('td', { className:'p-3 font-semibold' }, pct(st) + '%'),
                   e('td', { className:'p-3' }, st.present || 0),
-                  e('td', { className:'p-3' }, st.absent || 0),
-                  e('td', { className:'p-3' }, st.later  || 0),
+                  e('td', { className:'p-3' },
+                    e('div', { className:'flex items-center gap-2' },
+                      e('span', null, st.absent || 0),
+                      e('button', {
+                        onClick:()=>setShowAbsences(s.id),
+                        className:'text-xs px-2 py-1 rounded bg-slate-100 hover:bg-slate-200'
+                      }, 'ver fechas')
+                    )
+                  ),
+                  
                   e('td', { className:'p-3 text-right' },
                     e('button', { onClick:()=>onDelete(s.id), className:'text-xs px-3 py-1 rounded bg-rose-100 hover:bg-rose-200 text-rose-700' }, 'Eliminar')
                   )
@@ -170,7 +158,27 @@ function StudentsTable({ students, onAdd, onEdit, onDelete }) {
           )
         )
       )
-    )
+    
+      ,
+      showAbsences ? e('div', { className:'fixed inset-0 bg-black/40 flex items-center justify-center z-50' },
+        e('div', { className:'bg-white rounded-2xl shadow-xl max-w-md w-full p-4' },
+          (function(){
+            const s = sorted.find(x=>x.id===showAbsences);
+            const fechas = s ? (s.history||[]).filter(h=>h.status==='absent').map(h=>h.date).sort() : [];
+            return e(React.Fragment, null,
+              e('div', { className:'text-lg font-semibold mb-2' }, 'Fechas de inasistencia'),
+              e('div', { className:'text-sm text-slate-600 mb-3' }, s ? s.name : ''),
+              e('ul', { className:'list-disc ml-5 min-h-[40px]' },
+                ...(fechas.length ? fechas.map((d, i)=> e('li', { key:i }, d)) : [ e('li', { key:'none', className:'list-none text-slate-500' }, 'Sin registros') ])
+              ),
+              e('div', { className:'mt-4 text-right' },
+                e('button', { onClick:()=>setShowAbsences(null), className:'px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white' }, 'Cerrar')
+              )
+            );
+          })()
+        )
+      ) : null
+)
   );
 }
 
@@ -268,6 +276,29 @@ function RollCallCard({ students, onMark, onUndo, selectedDate }) {
           )
     )
   );
+
+function Footer({ onExport, onImport, onExportXLSX }){
+  const fileRef = React.useRef(null);
+  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
+  function handleFile(ev){
+    const file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => { try { onImport(reader.result); } finally { ev.target.value=''; } };
+    reader.readAsText(file);
+  }
+  return e('footer', { className:'p-4 md:p-6 border-t bg-white sticky bottom-0' },
+    e('div', { className:'flex flex-col md:flex-row gap-2 items-stretch md:items-center justify-between' },
+      e('div', { className:'text-sm text-slate-600' }, 'Acciones de respaldo y migración'),
+      e('div', { className:'flex gap-2' },
+        e('button', { onClick:onExport, className:'px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white' }, 'Exportar JSON'),
+        e('button', { onClick:onExportXLSX, className:'px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white' }, 'Exportar XLSX'),
+        e('button', { onClick:triggerImport, className:'px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200' }, 'Importar'),
+        e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
+      )
+    )
+  );
+}
 }
 
 function App() {
@@ -406,40 +437,8 @@ function App() {
     return Object.values(selectedCourse.students).sort((a,b)=>a.name.localeCompare(b.name));
   }, [selectedCourse]);
 
-
-  function exportState(){
-    try{
-      const data = JSON.stringify(state, null, 2);
-      const blob = new Blob([data], {type:'application/json'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'agenda_backup.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Exportación lista: se descargó agenda_backup.json');
-    } catch(err){
-      alert('No se pudo exportar: ' + (err && err.message ? err.message : err));
-    }
-  }
-  function importStateFromText(text){
-    try{
-      const parsed = JSON.parse(text);
-      const next = {
-        courses: parsed && typeof parsed.courses==='object' ? parsed.courses : {},
-        selectedCourseId: parsed && parsed.selectedCourseId ? parsed.selectedCourseId : null,
-        selectedDate: parsed && parsed.selectedDate ? parsed.selectedDate : todayStr()
-      };
-      setState(next);
-      alert('Importación exitosa. ¡Listo para usar!');
-    } catch(err){
-      alert('Archivo inválido. Debe ser un JSON exportado por esta app.');
-    }
-  }
   return e('div', null,
-    e(Header, { selectedDate, onChangeDate:setSelectedDate, onExport:exportState, onImport:importStateFromText }),
+    e(Header, { selectedDate, onChangeDate:setSelectedDate }),
     Object.keys(courses).length === 0
       ? e(EmptyState, { onCreateCourse:createCourse })
       : e(React.Fragment, null,
