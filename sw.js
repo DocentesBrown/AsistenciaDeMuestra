@@ -1,5 +1,5 @@
 // Service Worker: cache-first con actualización en segundo plano simple
-const CACHE = 'agenda-cache-v3';
+const CACHE = 'agenda-cache-v1';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -11,11 +11,7 @@ self.addEventListener('install', (e) => {
 });
 
 self.addEventListener('activate', (e) => {
-  e.waitUntil((async () => {
-    const names = await caches.keys();
-    await Promise.all(names.filter(n => n !== CACHE).map(n => caches.delete(n)));
-    await self.clients.claim();
-  })());
+  e.waitUntil(self.clients.claim());
 });
 
 self.addEventListener('fetch', (e) => {
