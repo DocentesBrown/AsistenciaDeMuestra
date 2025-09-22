@@ -1,254 +1,98 @@
-
-// ===== Helpers =====
+// Demo "Tomador de lista" — Single course, no auth
 const { useEffect, useMemo, useState, useRef } = React;
 const e = React.createElement;
 
-const LS_KEY = 'agenda_estudiantes_v1';
-function uid(prefix) { prefix = prefix || 'id'; return prefix + '_' + Math.random().toString(36).slice(2,9); }
-function safeStats(stats) { return stats && typeof stats === 'object' ? stats : { present:0, absent:0, later:0 }; }
-function pct(stats) { const s = safeStats(stats); const d = (s.present||0) + (s.absent||0); return d ? Math.round((s.present/d)*100) : 0; }
-function todayStr(d=new Date()){
-  const y = d.getFullYear();
-  const m = String(d.getMonth()+1).padStart(2,'0');
-  const day = String(d.getDate()).padStart(2,'0');
-  return `${y}-${m}-${day}`;
-}
-function loadState() {
-  // Por defecto SIEMPRE mostrar la fecha de HOY (se puede modificar luego)
-  try {
+function uid(prefix){ return (prefix||'id') + '_' + Math.random().toString(36).slice(2,9); }
+function todayStr(d=new Date()){ const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function safeStats(s){ return s && typeof s==='object' ? s : {present:0, absent:0, later:0}; }
+function pct(stats){ const s=safeStats(stats); const d=(s.present||0)+(s.absent||0); return d? Math.round((s.present/d)*100):0; }
+function avg(arr){ if(!arr||!arr.length) return 0; const nums=arr.map(x=>Number(x.value)).filter(v=>!Number.isNaN(v)); if(!nums.length) return 0; const s=nums.reduce((a,b)=>a+b,0); return Math.round((s/nums.length)*100)/100; }
+
+const LS_KEY = 'demo_tomador_lista_v1';
+
+function loadState(){
+  try{
     const raw = localStorage.getItem(LS_KEY);
-    const base = { courses:{}, selectedCourseId:null, selectedDate: todayStr() };
-    if (!raw) return base;
-    const parsed = JSON.parse(raw);
-    return {
-      courses: parsed.courses || {},
-      selectedCourseId: parsed.selectedCourseId || null,
-      // ignoramos la fecha guardada y arrancamos siempre en "hoy"
-      selectedDate: todayStr()
-    };
-  } catch {
-    return { courses:{}, selectedCourseId:null, selectedDate: todayStr() };
-  }
+    if(raw) return JSON.parse(raw);
+  }catch(_){}
+  // Estado inicial DEMO
+  const courseId = uid('curso');
+  const s1 = uid('al'); const s2 = uid('al'); const s3 = uid('al');
+  return {
+    selectedDate: todayStr(),
+    selectedCourseId: courseId,
+    courses: {
+      [courseId]: {
+        id: courseId,
+        name: 'Curso DEMO',
+        days: ['lun','mie','vie'],
+        preceptor: { name: 'Preceptor DEMO', phone: '' },
+        students: {
+          [s1]: { id:s1, name:'Ana Gómez', condition:'cursa', stats:{present:2, absent:1, later:0}, history:[{id:uid('h'), date: todayStr(), status:'present'}], grades:[{id:uid('g'), date: todayStr(), tipo:'escrito', value:8}] },
+          [s2]: { id:s2, name:'Bruno Díaz', condition:'cursa', stats:{present:1, absent:1, later:1}, history:[], grades:[{id:uid('g'), date: todayStr(), tipo:'oral', value:6}] },
+          [s3]: { id:s3, name:'Carla Pérez', condition:'recursa', stats:{present:0, absent:2, later:0}, history:[], grades:[] }
+        }
+      }
+    }
+  };
 }
-function saveState(state){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function saveState(state){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }catch(_){ } }
 
-// ===== UI Components =====
-
-function Header({ selectedDate, onChangeDate }) {
+function Header({ selectedDate, onChangeDate }){
   return e('header',
-    { className: 'w-full p-4 md:p-6 text-white flex items-center justify-between sticky top-0 z-10 shadow',
+    { className:'w-full p-4 md:p-6 text-white flex items-center justify-between sticky top-0 z-10 shadow',
       style:{ background:'#24496e' } },
     e('div', { className:'flex flex-col gap-1' },
       e('div', { className:'flex items-center gap-3' },
-        e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Asistencia de Estudiantes')
+        e('span', { className:'text-2xl md:text-3xl font-bold tracking-tight' }, 'Tomador de lista'),
+        e('span', { className:'text-[11px] font-semibold bg-white/20 px-2 py-0.5 rounded-lg' }, 'MUESTRA DE PRUEBA')
       ),
-      e('a', {
-          href:'https://www.instagram.com/docentesbrown',
-          target:'_blank',
-          rel:'noopener',
-          className:'text-xs md:text-sm underline',
-          style:{ opacity:.9 }
-        }, 'creado por @docentesbrown')
+      e('a', { href:'https://www.instagram.com/docentesbrown', target:'_blank', rel:'noopener',
+               className:'text-xs md:text-sm underline', style:{ opacity:.9 } }, 'creado por @docentesbrown')
     ),
     e('div', { className:'flex items-center gap-2' },
       e('label', { className:'text-sm opacity-90 hidden md:block' }, 'Fecha:'),
-      e('input', {
-        type:'date',
-        value:selectedDate,
-        onChange:(ev)=>onChangeDate(ev.target.value),
-        className:'rounded-md px-2 py-1 text-sm',
-        style:{ color:'#24496e' }
-      })
+      e('input', { type:'date', value:selectedDate, onChange:(ev)=>onChangeDate(ev.target.value),
+        className:'rounded-md px-2 py-1 text-sm', style:{ color:'#24496e' } })
     )
   );
 }
 
-function EmptyState({ onCreateCourse }) {
-  return e('div', { className:'p-6 md:p-10 text-center' },
-    e('h2', { className:'text-xl md:text-2xl font-semibold mb-2', style:{ color:'#24496e' } }, 'No hay cursos aún'),
-    e('p', { className:'text-slate-700 mb-4' }, 'Creá tu primer curso para comenzar a tomar asistencia.'),
-    e('button', { onClick:onCreateCourse,
-      className:'px-4 py-2 rounded-xl text-white shadow',
-      style:{ background:'#6c467e' } }, '+ Nuevo curso')
-  );
-}
-
-function CoursesBar({ courses, selectedCourseId, onSelect, onCreate, onRename, onDelete }) {
-  const [renamingId, setRenamingId] = useState(null);
-  const [newName, setNewName]   = useState('');
-
-  return e('div', { className:'w-full overflow-x-auto border-b border-slate-300 bg-white' },
-    e('div', { className:'flex items-center gap-2 p-3 min-w-max' },
-      ...Object.values(courses).map((c) =>
-        e('div', {
-          key:c.id,
-          className:'flex items-center gap-2 px-3 py-2 rounded-2xl border',
-          style: selectedCourseId===c.id
-            ? { borderColor:'#24496e', background:'#f0f4f8' }
-            : { borderColor:'#d7dbe0' }
-        },
-          renamingId===c.id
-            ? e('input', {
-                autoFocus:true, value:newName,
-                onChange:(ev)=>setNewName(ev.target.value),
-                onBlur:()=>{ onRename(c.id, newName || c.name); setRenamingId(null); },
-                onKeyDown:(ev)=>{ if(ev.key==='Enter'){ onRename(c.id, newName||c.name); setRenamingId(null); } if(ev.key==='Escape'){ setRenamingId(null); } },
-                className:'px-2 py-1 text-sm border rounded',
-                style:{ borderColor:'#d7dbe0' }
-              })
-            : e('button', {
-                className:'text-sm font-medium',
-                style:{ color: selectedCourseId===c.id ? '#24496e' : '#334155' },
-                onClick:()=>onSelect(c.id)
-              }, c.name),
-          e('div', { className:'flex items-center gap-1' },
-            e('button', { title:'Renombrar',
-              onClick:()=>{ setRenamingId(c.id); setNewName(c.name); },
-              className:'text-xs px-2 py-1 rounded',
-              style:{ background:'#f3efdc', color:'#24496e' } }, '✎'),
-            e('button', { title:'Eliminar curso', onClick:()=>onDelete(c.id),
-              className:'text-xs px-2 py-1 rounded',
-              style:{ background:'#fde2e0', color:'#da6863' } }, '🗑')
-          )
-        )
-      ),
-      e('button', { onClick:onCreate,
-        className:'px-3 py-2 rounded-2xl text-sm',
-        style:{ background:'#f3efdc', color:'#24496e' } }, '+ Nuevo curso')
-    )
-  );
-}
-
-function StudentsTable({ students, onAdd, onEdit, onDelete, onShowAbsences }) {
-  const [name, setName] = useState('');
-  const sorted = useMemo(() => Object.values(students).sort((a,b)=>a.name.localeCompare(b.name)), [students]);
-
-  return e('div', { className:'p-4 md:p-6' },
-    e('div', { className:'flex flex-col md:flex-row gap-2 md:items-end mb-4' },
-      e('div', { className:'flex-1' },
-        e('label', { className:'block text-sm font-medium mb-1', style:{ color:'#24496e' } }, 'Agregar estudiante'),
-        e('input', {
-          placeholder:'Nombre y apellido', value:name, onChange:(ev)=>setName(ev.target.value),
-          className:'w-full max-w-md px-3 py-2 border rounded-xl',
-          style:{ borderColor:'#d7dbe0' }
-        })
-      ),
-      e('button', {
-        onClick:()=>{ if(!name.trim()) return; onAdd(name.trim()); setName(''); },
-        className:'px-4 py-2 rounded-xl text-white',
-        style:{ background:'#6c467e' }
-      }, '+ Agregar')
-    ),
-    e('div', { className:'overflow-x-auto' },
-      e('table', { className:'w-full text-left border rounded-xl overflow-hidden', style:{ borderColor:'#cbd5e1' } },
-        // CABECERA azul + texto blanco
-        e('thead', { style:{ background:'#24496e', color:'#ffffff' } },
-          e('tr', null,
-            e('th', { className:'p-3 text-sm' }, 'Estudiante'),
-            e('th', { className:'p-3 text-sm' }, '% Asistencia'),
-            e('th', { className:'p-3 text-sm' }, 'Presente'),
-            e('th', { className:'p-3 text-sm' }, 'Ausente'),
-            e('th', { className:'p-3 text-sm' })
-          )
-        ),
-        // CUERPO con zebra y acciones
-        e('tbody', null,
-          ...(sorted.length
-            ? sorted.map((s, idx) => {
-                const st = safeStats(s.stats);
-                const rowBg = idx % 2 === 0 ? '#ffffff' : '#f3efdc';
-                return e('tr', { key:s.id, style:{ background:rowBg, borderTop:'1px solid #cbd5e1' } },
-                  e('td', { className:'p-3' },
-                    e('div', { className:'flex items-center gap-2' },
-                      e('span', { className:'font-medium' }, s.name),
-                      e('button', {
-                        onClick:()=>{ const nuevo = prompt('Editar nombre', s.name); if(nuevo && nuevo.trim()) onEdit(s.id, nuevo.trim()); },
-                        className:'text-xs px-2 py-1 rounded',
-                        style:{ background:'#f3efdc', color:'#24496e' }
-                      }, 'Editar')
-                    )
-                  ),
-                  e('td', { className:'p-3 font-semibold', style:{ color:'#24496e' } }, pct(st) + '%'),
-                  e('td', { className:'p-3' }, st.present || 0),
-                  e('td', { className:'p-3' },
-                    e('div', { className:'flex items-center gap-2' },
-                      e('span', null, st.absent || 0),
-                      e('button', {
-                        onClick:()=>onShowAbsences(s),
-                        className:'text-xs px-2 py-1 rounded',
-                        style:{ background:'#f3efdc', color:'#24496e' }
-                      }, 'Fechas')
-                    )
-                  ),
-                  e('td', { className:'p-3 text-right' },
-                    e('button', { onClick:()=>onDelete(s.id),
-                      className:'text-xs px-3 py-1 rounded',
-                      style:{ background:'#fde2e0', color:'#da6863' } }, 'Eliminar')
-                  )
-                );
-              })
-            : [e('tr', { key:'empty' },
-                e('td', { colSpan:5, className:'p-4 text-center text-slate-500' }, 'Sin estudiantes. Agregue usando el campo superior.')
-              )]
-          )
-        )
-      )
-    )
-  );
-}
-
-function RollCallCard({ students, onMark, onUndo, selectedDate }) {
-  const [order, setOrder] = useState(students.map(s => s.id));
+function RollCallCard({ students, onMark, onUndo, selectedDate }){
+  const [order, setOrder] = useState(students.map(s=>s.id));
   const [index, setIndex] = useState(0);
   const [ops, setOps] = useState([]);
-
-  useEffect(() => {
-    setOrder(students.map(s => s.id));
-    setIndex(0);
-    setOps([]);
-  }, [students.map(s => s.id).join('|')]);
+  useEffect(()=>{ setOrder(students.map(s=>s.id)); setIndex(0); setOps([]); }, [students.map(s=>s.id).join('|')]);
 
   const currentId = order[index];
-  const current = students.find(s => s.id === currentId) || null;
+  const current = students.find(s=>s.id===currentId) || null;
 
-  function handleAction(action){
+  function handle(action){
     if(!current) return;
     onMark(current.id, action, selectedDate);
-
-    if (action === 'later') {
-      const from = index;
-      const newOrder = order.slice();
-      const [m] = newOrder.splice(from, 1);
-      newOrder.push(m);
-      setOrder(newOrder);
-      setOps(ops => ops.concat([{ id: current.id, action, type:'mark', fromIndex: from, toIndex: newOrder.length - 1 }]));
-      return;
+    if(action==='later'){
+      const from=index; const arr=order.slice(); const [m]=arr.splice(from,1); arr.push(m);
+      setOrder(arr); setOps(o=>o.concat([{id:current.id, action, fromIndex:from, toIndex:arr.length-1}]));
+    }else{
+      setOps(o=>o.concat([{id:current.id, action}])); setIndex(i=>Math.min(i+1, order.length));
     }
-    const from = index;
-    setOps(ops => ops.concat([{ id: current.id, action, type:'mark', fromIndex: from, toIndex: from }]));
-    setIndex(i => Math.min(i + 1, order.length));
   }
-
-  function goBack(){
-    if (ops.length === 0) return;
-    const last = ops[ops.length - 1];
+  function undo(){
+    if(!ops.length) return;
+    const last = ops[ops.length-1];
     onUndo(last.id, last.action, selectedDate);
-
-    if (last.action === 'later' && typeof last.fromIndex === 'number' && typeof last.toIndex === 'number') {
-      const newOrder = order.slice();
-      const [m] = newOrder.splice(last.toIndex, 1);
-      newOrder.splice(last.fromIndex, 0, m);
-      setOrder(newOrder);
-      setIndex(last.fromIndex);
-    } else {
-      setIndex(i => Math.max(0, i - 1));
+    if(last.action==='later'){
+      const arr = order.slice(); const [m]=arr.splice(last.toIndex,1); arr.splice(last.fromIndex,0,m);
+      setOrder(arr); setIndex(last.fromIndex);
+    }else{
+      setIndex(i=>Math.max(0,i-1));
     }
-    setOps(arr => arr.slice(0, -1));
+    setOps(a=>a.slice(0,-1));
   }
 
-  if (!students.length) return e('div', { className:'p-6 text-center text-slate-600' }, 'No hay estudiantes en este curso.');
+  if(!students.length) return e('div', {className:'p-6 text-center text-slate-600'}, 'No hay estudiantes en este curso.');
 
-  const cardPos = Math.min(index + 1, order.length);
+  const cardPos = Math.min(index+1, order.length);
   return e('div', { className:'p-4 md:p-6' },
     e('div', { className:'max-w-xl mx-auto' },
       e('div', { className:'mb-3 text-sm text-slate-600 text-center' }, `Tarjeta ${cardPos} / ${order.length}`),
@@ -256,84 +100,111 @@ function RollCallCard({ students, onMark, onUndo, selectedDate }) {
         ? e('div', { className:'rounded-3xl border shadow p-6 md:p-8 bg-white', style:{ borderColor:'#d7dbe0' } },
             e('div', { className:'text-center mb-6' },
               e('div', { className:'text-2xl md:4xl font-bold tracking-tight mb-2', style:{ color:'#24496e' } }, current.name),
-              e('div', { className:'text-sm md:text-base text-slate-700' },
-                'Asistencia acumulada: ', e('span', { className:'font-semibold', style:{ color:'#24496e' } }, pct(current.stats) + '%'),
+              e('div', { className:'text-sm md:text-base text-slate-700' }, 'Asistencia acumulada: ',
+                e('span', { className:'font-semibold', style:{ color:'#24496e' } }, pct(current.stats)+'%'),
                 ' · Fecha sesión: ', e('span', { className:'font-semibold', style:{ color:'#24496e' } }, selectedDate)
               )
             ),
             e('div', { className:'grid grid-cols-2 gap-3 md:gap-4' },
-              // Presente (verde suave)
-              e('button', {
-                onClick:()=>handleAction('present'),
-                className:'py-3 md:py-4 rounded-2xl font-semibold border',
-                style:{ background:'#e8f7ef', borderColor:'#cdebdc', color:'#166534' } // verde suave
-              }, 'Presente ✅'),
-              // Ausente (rojo suave)
-              e('button', {
-                onClick:()=>handleAction('absent'),
-                className:'py-3 md:py-4 rounded-2xl font-semibold border',
-                style:{ background:'#fdecea', borderColor:'#f7d7d3', color:'#991b1b' } // rojo suave
-              }, 'Ausente ❌'),
-              // Revisar más tarde (violeta suave)
-              e('button', {
-                onClick:()=>handleAction('later'),
-                className:'py-3 md:py-4 rounded-2xl font-semibold border col-span-2',
-                style:{ background:'#f0eaf5', borderColor:'#e2d7ec', color:'#6c467e' }
-              }, 'Revisar más tarde ⏳'),
-              e('button', {
-                onClick:goBack,
-                className:'py-2 md:py-2.5 rounded-xl font-medium col-span-2',
-                style:{ background:'#f3efdc', color:'#24496e' }
-              }, '← Volver al anterior (deshacer)')
+              e('button', { onClick:()=>handle('present'), className:'py-3 md:py-4 rounded-2xl font-semibold border',
+                style:{ background:'#e8f7ef', borderColor:'#cdebdc', color:'#166534' } }, 'Presente ✅'),
+              e('button', { onClick:()=>handle('absent'), className:'py-3 md:py-4 rounded-2xl font-semibold border',
+                style:{ background:'#fdecea', borderColor:'#f7d7d3', color:'#991b1b' } }, 'Ausente ❌'),
+              e('button', { onClick:()=>handle('later'), className:'py-3 md:py-4 rounded-2xl font-semibold border col-span-2',
+                style:{ background:'#f0eaf5', borderColor:'#e2d7ec', color:'#6c467e' } }, 'Revisar más tarde ⏳'),
+              e('button', { onClick:undo, className:'py-2 md:py-2.5 rounded-xl font-medium col-span-2',
+                style:{ background:'#f3efdc', color:'#24496e' } }, '← Volver al anterior (deshacer)')
             )
           )
         : e('div', { className:'rounded-3xl border shadow p-6 md:p-8 bg-white text-center', style:{ borderColor:'#d7dbe0' } },
             e('div', { className:'text-xl font-semibold mb-2', style:{ color:'#24496e' } }, '¡Lista completada!'),
-            e('div', { className:'text-slate-700' }, 'Ya asignaste estado a todos los estudiantes. Podés volver a empezar o revisar el resumen abajo.')
+            e('div', { className:'text-slate-700' }, 'Ya asignaste estado a todos.')
           )
     )
   );
 }
 
-// Barra inferior con Importar/Exportar (reordenada: XLSX → Export JSON → Import JSON)
-function BottomActions({ onExportJSON, onImportJSON, onExportXLSX }) {
-  const fileRef = useRef(null);
-  function triggerImport(){ if(fileRef.current) fileRef.current.click(); }
-  function handleFile(ev){
-    const file = ev.target.files && ev.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = () => { try { onImportJSON(reader.result); } finally { ev.target.value=''; } };
-    reader.readAsText(file);
-  }
-
-  return e('div', { className:'p-4 md:p-6 sticky bottom-0 bg-white border-t shadow-sm',
-    style:{ borderColor:'#d7dbe0' } },
-    e('div', { className:'max-w-3xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-3' },
-      // 1) XLSX
-      e('button', { onClick:onExportXLSX,
-        className:'px-4 py-2 rounded-xl text-white font-semibold',
-        style:{ background:'#24496e' } }, 'Exportar .xlsx'),
-      // 2) Exportar JSON
-      e('button', { onClick:onExportJSON,
-        className:'px-4 py-2 rounded-xl font-semibold',
-        style:{ background:'#f3efdc', color:'#24496e' } }, 'Exportar JSON'),
-      // 3) Importar JSON
-      e('button', { onClick:()=> (fileRef.current && fileRef.current.click()),
-        className:'px-4 py-2 rounded-xl font-semibold',
-        style:{ background:'#f3efdc', color:'#24496e' } }, 'Importar JSON'),
-      e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:handleFile })
+function StudentsTable({ course, students, onAdd, onEdit, onDelete, onShowAbsences }){
+  const [cond, setCond] = useState('cursa');
+  const [name, setName] = useState('');
+  const sorted = useMemo(()=>Object.values(students).sort((a,b)=>a.name.localeCompare(b.name)),[students]);
+  return e('div', { className:'p-4 md:p-6' },
+    e('div', { className:'flex flex-col md:flex-row gap-2 md:items-end mb-4' },
+      e('div', { className:'flex-1' },
+        e('label', { className:'block text-sm font-medium mb-1', style:{ color:'#24496e' } }, 'Agregar estudiante'),
+        e('input', { placeholder:'Nombre y apellido', value:name, onChange:(ev)=>setName(ev.target.value),
+          className:'w-full max-w-md px-3 py-2 border rounded-xl', style:{ borderColor:'#d7dbe0' } })
+      ),
+      e('div', { className:'flex items-center gap-2' },
+        e('select', { value:cond, onChange:(ev)=>setCond(ev.target.value), className:'px-3 py-2 border rounded-xl', style:{ borderColor:'#d7dbe0' } },
+          e('option', {value:'cursa'}, 'Cursa'),
+          e('option', {value:'recursa'}, 'Recursa')
+        )
+      ),
+      e('button', { onClick:()=>{ if(!name.trim()) return; onAdd(name.trim(), cond); setName(''); },
+        className:'px-4 py-2 rounded-xl text-white', style:{ background:'#6c467e' } }, '+ Agregar')
+    ),
+    e('div', { className:'overflow-x-auto' },
+      e('table', { className:'w-full text-left border rounded-xl overflow-hidden', style:{ borderColor:'#cbd5e1' } },
+        e('thead', { style:{ background:'#24496e', color:'#ffffff' } },
+          e('tr', null,
+            e('th', { className:'p-3 text-sm' }, 'Estudiante'),
+            e('th', { className:'p-3 text-sm' }, '% Asistencia'),
+            e('th', { className:'p-3 text-sm' }, 'Presente'),
+            e('th', { className:'p-3 text-sm' }, 'Ausente'),
+            e('th', { className:'p-3 text-sm' }, 'Acciones')
+          )
+        ),
+        e('tbody', null,
+          ...(sorted.length? sorted.map((s,idx)=>{
+            const st = safeStats(s.stats);
+            const rowBg = idx%2===0 ? '#ffffff' : '#f3efdc';
+            const isLow = pct(st) < 15;
+            return e('tr', { key:s.id, style:{ background:rowBg, borderTop:'1px solid #cbd5e1' } },
+              e('td', { className:'p-3' },
+                e('div', { className:'flex items-center gap-2' },
+                  e('span', { className:'font-medium' }, s.name),
+                  e('span', { className:'text-[10px] px-2 py-0.5 rounded-full',
+                    style:{ background: s.condition==='recursa' ? '#fde2e0' : '#e8f7ef', color: s.condition==='recursa' ? '#da6863' : '#166534' } },
+                    s.condition==='recursa' ? 'Recursa' : 'Cursa'
+                  )
+                )
+              ),
+              e('td', { className:'p-3 font-semibold', style: isLow ? { background:'#fdecea', color:'#991b1b', borderRadius:'8px' } : { color:'#24496e' } }, pct(st)+'%'),
+              e('td', { className:'p-3' }, st.present || 0),
+              e('td', { className:'p-3' },
+                e('div', { className:'flex items-center gap-2' },
+                  e('span', null, st.absent || 0),
+                  e('button', { onClick:()=>onShowAbsences(s), className:'text-xs px-2 py-1 rounded',
+                    style:{ background:'#f3efdc', color:'#24496e' } }, 'Fechas')
+                )
+              ),
+              e('td', { className:'p-3 text-right' },
+                e('div', {className:'flex gap-2 justify-end'},
+                  e('button', { onClick:()=>{
+                      const nuevo = prompt('Editar nombre', s.name) || s.name;
+                      const cond = prompt('Condición (cursa/recursa)', s.condition || 'cursa') || (s.condition || 'cursa');
+                      const norm = (cond||'').toLowerCase()==='recursa' ? 'recursa' : 'cursa';
+                      onEdit(s.id, { name: nuevo.trim(), condition: norm });
+                    },
+                    className:'text-xs px-2 py-1 rounded', style:{ background:'#f3efdc', color:'#24496e' } }, 'Editar'),
+                  e('button', { onClick:()=>{ if(confirm('¿Eliminar estudiante y sus datos?')) onDelete(s.id); },
+                    className:'text-xs px-3 py-1 rounded', style:{ background:'#fde2e0', color:'#da6863' } }, 'Eliminar')
+                )
+              )
+            );
+          }) : [e('tr', { key:'empty' }, e('td', { colSpan:5, className:'p-4 text-center text-slate-500' }, 'Sin estudiantes.'))])
+        )
+      )
     )
   );
 }
 
-// Modal simple (sin cambios de lógica, con colores)
-function Modal({ open, title, onClose, children }) {
-  if (!open) return null;
+function Modal({ open, title, onClose, children }){
+  if(!open) return null;
   return e('div', { className:'fixed inset-0 z-50 flex items-end sm:items-center justify-center' },
     e('div', { className:'absolute inset-0', onClick:onClose, style:{ background:'rgba(0,0,0,.4)' } }),
-    e('div', { className:'relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-lg p-4 sm:p-6 m-0 sm:m-4',
-      style:{ background:'#ffffff', border:'1px solid #d7dbe0' } },
+    e('div', { className:'relative w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl shadow-lg p-4 sm:p-6 m-0 sm:m-4', style:{ background:'#ffffff', border:'1px solid #d7dbe0' } },
       e('div', { className:'flex items-center justify-between mb-3' },
         e('h3', { className:'text-lg font-semibold', style:{ color:'#24496e' } }, title),
         e('button', { onClick:onClose, className:'px-2 py-1 rounded', style:{ background:'#f3efdc', color:'#24496e' } }, '✕')
@@ -343,271 +214,221 @@ function Modal({ open, title, onClose, children }) {
   );
 }
 
-function App() {
+function AbsencesModal({ open, student, onClose, onApplyChange }){
+  const [choices, setChoices] = useState({});
+  useEffect(()=>{ setChoices({}); }, [open, student && student.id]);
+  if(!open || !student) return null;
+  const history = (student.history || []).map(h => h.id ? h : Object.assign({}, h, { id: uid('hist') }));
+  const rows = history.filter(h => h.status==='absent' || h.status==='tarde').slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  const totalAus = rows.filter(r => r.status==='absent').length;
+  function labelFor(r){ if(r.status==='tarde') return 'Tarde'; return 'Ausente'; }
+  return e(Modal, { open, title:`Inasistencias – ${student.name}`, onClose },
+    e('div', null,
+      e('div', { className:'mb-3 text-sm text-slate-700' }, 'Total de ausencias: ', e('strong', {style:{color:'#24496e'}}, totalAus)),
+      e('div', { className:'max-h-72 overflow-auto border rounded-xl', style:{borderColor:'#d7dbe0'} },
+        e('table', { className:'w-full text-left' },
+          e('thead', { style:{background:'#24496e', color:'#fff'} },
+            e('tr', null, e('th',{className:'p-2 text-sm'},'Fecha'), e('th',{className:'p-2 text-sm'},'Estado'),
+              e('th',{className:'p-2 text-sm'},'Cambiar a'), e('th',{className:'p-2 text-sm'}))
+          ),
+          e('tbody', null,
+            ...(rows.length? rows.map(r =>
+              e('tr', { key:r.id, className:'border-t', style:{borderColor:'#e2e8f0'} },
+                e('td', { className:'p-2' }, r.date || ''),
+                e('td', { className:'p-2' }, labelFor(r)),
+                e('td', { className:'p-2' },
+                  e('select', { className:'px-2 py-1 border rounded', style:{borderColor:'#d7dbe0'},
+                    value:choices[r.id] || '', onChange:(ev)=>setChoices(ch=>Object.assign({}, ch, { [r.id]: ev.target.value })) },
+                    e('option', {value:''}, 'Seleccionar...'),
+                    e('option', {value:'tarde'}, 'Tarde'),
+                    e('option', {value:'erronea'}, 'Errónea (eliminar)')
+                  )
+                ),
+                e('td', { className:'p-2 text-right' },
+                  e('button', { className:'text-xs px-2 py-1 rounded', style:{background:'#fde2e0', color:'#da6863'},
+                    onClick:()=>{ const ch = choices[r.id]; if(!ch){ alert('Elegí una opción en "Cambiar a".'); return; } onApplyChange(r.id, ch); } }, 'Aplicar')
+                )
+              )
+            ): [e('tr', { key:'empty' }, e('td', { colSpan:4, className:'p-2 text-center text-slate-500' }, 'Sin registros.'))])
+          )
+        )
+      )
+    )
+  );
+}
+
+function ExportModal({ open, onClose, onExportJSON, onImportJSON, onExportXLSX }){
+  const fileRef = useRef(null);
+  function onFile(ev){
+    const file = ev.target.files && ev.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{ try{ onImportJSON(reader.result); } finally { ev.target.value=''; } };
+    reader.readAsText(file);
+  }
+  if(!open) return null;
+  return e(Modal, { open, title:'Exportar / Importar', onClose },
+    e('div', { className:'grid grid-cols-1 gap-3' },
+      e('button', { onClick:onExportXLSX, className:'px-4 py-2 rounded-xl text-white font-semibold', style:{ background:'#24496e' } }, 'Exportar .xlsx'),
+      e('button', { onClick:onExportJSON, className:'px-4 py-2 rounded-xl font-semibold', style:{ background:'#f3efdc', color:'#24496e' } }, 'Exportar a PC (.json)'),
+      e('button', { onClick:()=> fileRef.current && fileRef.current.click(), className:'px-4 py-2 rounded-xl font-semibold', style:{ background:'#f3efdc', color:'#24496e' } }, 'Importar desde PC (.json)'),
+      e('input', { ref:fileRef, type:'file', accept:'.json,application/json', className:'hidden', onChange:onFile })
+    )
+  );
+}
+
+function App(){
   const [state, setState] = useState(loadState());
-  const courses = state.courses;
-  const selectedCourseId = state.selectedCourseId;
-  const selectedDate = state.selectedDate || todayStr();
+  const [exportOpen, setExportOpen] = useState(false);
+  const [absencesOpen, setAbsencesOpen] = useState(false);
+  const [absencesStudentId, setAbsencesStudentId] = useState(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalStudent, setModalStudent] = useState(null);
-  const [modalDates, setModalDates] = useState([]);
+  useEffect(()=>{ saveState(state); }, [state]);
+  useEffect(()=>{ window.__openExport = () => setExportOpen(true); return () => { try{ delete window.__openExport; }catch(_){}}; }, []);
 
-  useEffect(() => { saveState(state); }, [state]);
+  const selectedCourse = state.courses[state.selectedCourseId];
+  const studentsArr = useMemo(()=>Object.values(selectedCourse.students).sort((a,b)=>a.name.localeCompare(b.name)), [selectedCourse]);
 
-  const selectedCourse = selectedCourseId ? courses[selectedCourseId] : null;
-
-  function setSelectedDate(dateStr){
-    setState(s => Object.assign({}, s, { selectedDate: dateStr || todayStr() }));
-  }
-  function selectCourse(id){ setState(s => Object.assign({}, s, { selectedCourseId:id })); }
-  function createCourse(){
-    const name = prompt('Nombre del curso (ej. 3°B - Matemática)');
-    if (!name || !name.trim()) return;
-    const id = uid('curso');
-    setState(s => {
-      const next = Object.assign({}, s);
-      next.selectedCourseId = id;
-      next.courses = Object.assign({}, s.courses);
-      next.courses[id] = { id, name:name.trim(), students:{} };
+  function setSelectedDate(dateStr){ setState(s => Object.assign({}, s, { selectedDate: dateStr || todayStr() })); }
+  function addStudent(name, condition){
+    const id = uid('al');
+    setState(s=>{
+      const next = structuredClone(s);
+      next.courses[s.selectedCourseId].students[id] = { id, name, condition, stats:{present:0, absent:0, later:0}, history:[], grades:[] };
       return next;
     });
   }
-  function renameCourse(id, newName){
+  function editStudent(id, payload){
     setState(s=>{
-      const next = Object.assign({}, s);
-      next.courses = Object.assign({}, s.courses);
-      const c = Object.assign({}, next.courses[id]); c.name = newName; next.courses[id] = c;
-      return next;
-    });
-  }
-  function deleteCourse(id){
-    if (!confirm('¿Eliminar curso y toda su información?')) return;
-    setState(s=>{
-      const next = Object.assign({}, s);
-      next.courses = Object.assign({}, s.courses);
-      delete next.courses[id];
-      if (s.selectedCourseId === id) next.selectedCourseId = null;
-      return next;
-    });
-  }
-  function addStudent(name){
-    const id = uid('alumno');
-    setState(s=>{
-      const next = Object.assign({}, s);
-      const course = Object.assign({}, next.courses[selectedCourseId]);
-      const students = Object.assign({}, course.students);
-      students[id] = { id, name, stats:{present:0, absent:0, later:0}, history:[] };
-      course.students = students;
-      next.courses = Object.assign({}, next.courses);
-      next.courses[selectedCourseId] = course;
-      return next;
-    });
-  }
-  function editStudent(id, newName){
-    setState(s=>{
-      const next = Object.assign({}, s);
-      const course = Object.assign({}, next.courses[selectedCourseId]);
-      const students = Object.assign({}, course.students);
-      const st = Object.assign({}, students[id]); st.name = newName; students[id] = st;
-      course.students = students;
-      next.courses = Object.assign({}, next.courses);
-      next.courses[selectedCourseId] = course;
+      const next = structuredClone(s);
+      const st = next.courses[s.selectedCourseId].students[id];
+      if(typeof payload==='string'){ st.name = payload; }
+      else { if(payload.name) st.name = payload.name; if(payload.condition) st.condition = payload.condition; }
       return next;
     });
   }
   function deleteStudent(id){
+    if(!confirm('¿Seguro que querés eliminar a este estudiante y toda su información?')) return;
     setState(s=>{
-      const next = Object.assign({}, s);
-      const course = Object.assign({}, next.courses[selectedCourseId]);
-      const students = Object.assign({}, course.students);
-      delete students[id];
-      course.students = students;
-      next.courses = Object.assign({}, next.courses);
-      next.courses[selectedCourseId] = course;
+      const next = structuredClone(s);
+      delete next.courses[s.selectedCourseId].students[id];
       return next;
     });
   }
-
-  // Registra marca con fecha; acumula stats y apendea historial [{date,status}]
   function markAttendance(studentId, action, dateStr){
     setState(s=>{
-      const next = Object.assign({}, s);
-      const course = Object.assign({}, next.courses[selectedCourseId]);
-      const students = Object.assign({}, course.students);
-      const st = Object.assign({}, students[studentId]);
-      let stats = safeStats(st.stats);
-      stats = { present:stats.present||0, absent:stats.absent||0, later:stats.later||0 };
-      if (action==='present') stats.present += 1;
-      if (action==='absent')  stats.absent  += 1;
-      if (action==='later')   stats.later   += 1;
-      const history = (st.history || []).slice();
-      history.push({ date: dateStr || todayStr(), status: action });
-      st.stats = stats; st.history = history; students[studentId] = st; course.students = students;
-      next.courses = Object.assign({}, next.courses); next.courses[selectedCourseId] = course;
+      const next = structuredClone(s);
+      const st = next.courses[s.selectedCourseId].students[studentId];
+      const stats = safeStats(st.stats);
+      if(action==='present') stats.present += 1;
+      if(action==='absent')  stats.absent  += 1;
+      if(action==='later')   stats.later   += 1;
+      st.stats = stats;
+      const hist = st.history? st.history.slice():[];
+      hist.push({ id: uid('hist'), date: dateStr || todayStr(), status: action });
+      st.history = hist;
       return next;
     });
   }
-
-  // Deshacer última marca
   function undoAttendance(studentId, action, dateStr){
     setState(s=>{
-      const next = Object.assign({}, s);
-      const course = Object.assign({}, next.courses[selectedCourseId]);
-      const students = Object.assign({}, course.students);
-      const st = Object.assign({}, students[studentId]);
-      let stats = safeStats(st.stats);
-      stats = { present:stats.present||0, absent:stats.absent||0, later:stats.later||0 };
-
-      const hist = (st.history || []).slice();
-      for (let i = hist.length - 1; i >= 0; i--) {
+      const next = structuredClone(s);
+      const st = next.courses[s.selectedCourseId].students[studentId];
+      const stats = safeStats(st.stats);
+      const hist = st.history? st.history.slice():[];
+      for(let i=hist.length-1;i>=0;i--){
         const h = hist[i];
-        if (h.status === action && (dateStr ? h.date === dateStr : true)) {
-          hist.splice(i, 1);
-          if (action==='present' && stats.present>0) stats.present -= 1;
-          if (action==='absent'  && stats.absent>0)  stats.absent  -= 1;
-          if (action==='later'   && stats.later>0)   stats.later   -= 1;
+        if(h.status===action && (dateStr? h.date===dateStr: true)){
+          hist.splice(i,1);
+          if(action==='present' && stats.present>0) stats.present -= 1;
+          if(action==='absent'  && stats.absent>0)  stats.absent  -= 1;
+          if(action==='later'   && stats.later>0)   stats.later   -= 1;
           break;
         }
       }
-      st.stats = stats; st.history = hist; students[studentId] = st; course.students = students;
-      next.courses = Object.assign({}, next.courses); next.courses[selectedCourseId] = course;
+      st.stats = stats; st.history = hist;
+      return next;
+    });
+  }
+  function openAbsences(student){ setAbsencesStudentId(student.id); setAbsencesOpen(true); }
+  function applyAbsenceChange(studentId, histId, reason){
+    setState(s=>{
+      const next = structuredClone(s);
+      const st = next.courses[s.selectedCourseId].students[studentId];
+      const stats = safeStats(st.stats);
+      const hist = (st.history || []).slice();
+      const idx = hist.findIndex(h => h.id === histId);
+      if(idx === -1) return s;
+      const entry = Object.assign({}, hist[idx]);
+      if (reason === 'erronea') {
+        if (entry.status === 'absent' && stats.absent > 0) stats.absent -= 1;
+        if (entry.status === 'tarde'  && stats.later  > 0) stats.later  -= 1;
+        entry.status = 'present';
+        stats.present = (stats.present || 0) + 1;
+        hist[idx] = entry;
+      } else if (reason === 'tarde') {
+        if (entry.status === 'absent') { if (stats.absent > 0) stats.absent -= 1; }
+        if (entry.status !== 'tarde') { stats.later = (stats.later || 0) + 1; }
+        stats.present = (stats.present || 0) + 1;
+        entry.status = 'tarde';
+        hist[idx] = entry;
+      }
+      st.history = hist;
+      st.stats = { present: stats.present||0, absent: stats.absent||0, later: stats.later||0 };
       return next;
     });
   }
 
-  const studentsArr = useMemo(() => {
-    if (!selectedCourse) return [];
-    return Object.values(selectedCourse.students).sort((a,b)=>a.name.localeCompare(b.name));
-  }, [selectedCourse]);
-
-  // Export / Import JSON
   function exportStateJSON(){
     try{
       const data = JSON.stringify(state, null, 2);
       const blob = new Blob([data], {type:'application/json'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'agenda_backup.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      alert('Exportación lista: se descargó agenda_backup.json');
-    } catch(err){
-      alert('No se pudo exportar: ' + (err && err.message ? err.message : err));
-    }
+      a.href = url; a.download = 'demo_backup.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      alert('Exportación lista: se descargó demo_backup.json');
+    } catch(err){ alert('No se pudo exportar: ' + (err && err.message ? err.message : err)); }
   }
   function importStateFromText(text){
     try{
       const parsed = JSON.parse(text);
-      const next = {
-        courses: parsed && typeof parsed.courses==='object' ? parsed.courses : {},
-        selectedCourseId: parsed && parsed.selectedCourseId ? parsed.selectedCourseId : null,
-        // si se quiere conservar la fecha del archivo, cambiar por: parsed.selectedDate || todayStr()
-        selectedDate: todayStr()
-      };
-      setState(next);
-      alert('Importación exitosa. ¡Listo para usar!');
-    } catch(err){
-      alert('Archivo inválido. Debe ser un JSON exportado por esta app.');
-    }
+      setState(parsed);
+      alert('Importación exitosa.');
+    } catch(_){ alert('Archivo inválido.'); }
   }
-
-  // Exportar a XLSX (historial por estudiante con fechas y estado)
   function exportXLSX(){
-    if (!selectedCourse) { alert('Primero seleccioná un curso.'); return; }
     const course = selectedCourse;
-    // Hoja "Historial": Estudiante | Fecha | Estado
-    const rows = [['Estudiante','Fecha','Estado']];
-    Object.values(course.students).forEach(st => {
-      (st.history || []).forEach(h => {
-        rows.push([st.name, h.date, h.status]);
-      });
-    });
-    // Hoja "Resumen": Estudiante | Presente | Ausente | % Asistencia
-    const resumen = [['Estudiante','Presente','Ausente','% Asistencia']];
-    Object.values(course.students).forEach(st => {
-      const stats = safeStats(st.stats);
-      resumen.push([st.name, stats.present||0, stats.absent||0, pct(stats)]);
-    });
-
-    // Crear libro
+    const rowsHist = [['Estudiante','Fecha','Estado']];
+    Object.values(course.students).forEach(st => { (st.history || []).forEach(h => rowsHist.push([st.name, h.date || '', h.status || ''])); });
     const wb = XLSX.utils.book_new();
-    const wsHist = XLSX.utils.aoa_to_sheet(rows);
-    const wsRes = XLSX.utils.aoa_to_sheet(resumen);
-    XLSX.utils.book_append_sheet(wb, wsHist, 'Historial');
-    XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen');
-
-    const fileName = `asistencia_${course.name.replace(/[^\w\\-]+/g,'_')}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rowsHist), 'Historial');
+    XLSX.writeFile(wb, `asistencia_demo.xlsx`);
   }
 
-  // Modal: mostrar fechas de ausencias de un estudiante
-  function showAbsences(student){
-    const dates = (student.history || []).filter(h => h.status === 'absent').map(h => h.date).sort();
-    setModalStudent(student);
-    setModalDates(dates);
-    setModalOpen(true);
-  }
+  const absencesStudent = selectedCourse && absencesStudentId ? selectedCourse.students[absencesStudentId] || null : null;
 
   return e('div', null,
-    e(Header, { selectedDate, onChangeDate:setSelectedDate }),
-    Object.keys(courses).length === 0
-      ? e(EmptyState, { onCreateCourse:createCourse })
-      : e(React.Fragment, null,
-          e(CoursesBar, {
-            courses, selectedCourseId,
-            onSelect:selectCourse, onCreate:createCourse, onRename:renameCourse, onDelete:deleteCourse
-          }),
-          !selectedCourse
-            ? e('div', { className:'p-6 text-slate-700' }, 'Seleccioná un curso para administrar estudiantes y tomar lista.')
-            : e(React.Fragment, null,
-                e('div', { className:'p-4 md:p-6' },
-                  e('h2', { className:'text-xl md:text-2xl font-semibold', style:{ color:'#24496e' } }, selectedCourse.name),
-                  e('p',  { className:'text-slate-700' }, 'Estudiantes: ' + studentsArr.length)
-                ),
-                e(RollCallCard, {
-                  students:studentsArr,
-                  selectedDate,
-                  onMark:markAttendance,
-                  onUndo:undoAttendance
-                }),
-                e(StudentsTable, {
-                  students:selectedCourse.students,
-                  onAdd:addStudent,
-                  onEdit:editStudent,
-                  onDelete:deleteStudent,
-                  onShowAbsences:showAbsences
-                }),
-                e(BottomActions, {
-                  onExportJSON:exportStateJSON,
-                  onImportJSON:importStateFromText,
-                  onExportXLSX:exportXLSX
-                })
-              )
-        ),
-
-    e(Modal, {
-      open:modalOpen,
-      title: modalStudent ? `Fechas de ausencia – ${modalStudent.name}` : 'Fechas de ausencia',
-      onClose:()=>setModalOpen(false)
-    },
-      modalDates.length
-        ? e('ul', { className:'list-disc ml-5 space-y-1' }, ...modalDates.map((d,i)=>e('li',{key:i},d)))
-        : e('div', { className:'text-slate-700' }, 'No hay inasistencias registradas.')
-    )
+    e(Header, { selectedDate: state.selectedDate, onChangeDate: setSelectedDate }),
+    e('main', { className:'max-w-5xl mx-auto' },
+      e('div', { className:'w-full overflow-x-auto border-b border-slate-300 bg-white' },
+        e('div', { className:'flex items-center gap-2 p-3 min-w-max' },
+          e('div', { className:'flex items-center gap-2 px-3 py-2 rounded-2xl border', style:{ borderColor:'#24496e', background:'#f0f4f8' } },
+            e('span', { className:'text-sm font-medium', style:{ color:'#24496e' } }, selectedCourse.name),
+            e('span', { className:'ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full', style:{ background:'#24496e', color:'#fff' } }, 'MUESTRA')
+          )
+        )
+      ),
+      e('div', null,
+        e(RollCallCard, { students:studentsArr, selectedDate: state.selectedDate, onMark:markAttendance, onUndo:undoAttendance }),
+        e(StudentsTable, { course:selectedCourse, students:selectedCourse.students,
+          onAdd:addStudent, onEdit:editStudent, onDelete:deleteStudent, onShowAbsences:openAbsences })
+      )
+    ),
+    e(ExportModal, { open:exportOpen, onClose:()=>setExportOpen(false), onExportJSON:exportStateJSON, onImportJSON:importStateFromText, onExportXLSX:exportXLSX }),
+    e(AbsencesModal, { open:absencesOpen, student:absencesStudent, onClose:()=>setAbsencesOpen(false),
+      onApplyChange:(histId, reason)=>applyAbsenceChange(absencesStudentId, histId, reason) })
   );
 }
 
-// ===== Render =====
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(e(App));
-
-// (tests integrados mínimos)
-(function runSmoke(){
-  function assert(name, cond){ return { name, pass: !!cond }; }
-  const t1 = assert('pct 3/5 = 60%', pct({present:3, absent:2}) === 60);
-  console.log('TESTS:', [t1]);
-})();
