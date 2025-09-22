@@ -809,6 +809,12 @@ function App() {
   function setSelectedDate(dateStr){ setState(s => Object.assign({}, s, { selectedDate: dateStr || todayStr() })); }
   function selectCourse(id){ setState(s => Object.assign({}, s, { selectedCourseId:id })); }
   function createCourseFromModal(payload){
+    // Versión de muestra: solo 1 curso
+    const count = Object.keys(state.courses||{}).length;
+    if(count >= 1){
+      alert('En la versión de muestra solo se puede crear un curso.');
+      return;
+    }
     const id = uid('curso');
     setState(s => {
       const next = Object.assign({}, s);
@@ -818,7 +824,15 @@ function App() {
       return next;
     });
   }
-  function createCourse(){ setNewCourseOpen(true); }
+  function createCourse(){
+    // Versión de muestra: solo 1 curso
+    const count = Object.keys(state.courses||{}).length;
+    if(count >= 1){
+      alert('En la versión de muestra solo se puede crear un curso.');
+      return;
+    }
+    setNewCourseOpen(true);
+  }
   function renameCourse(id, newName){
     setState(s=>{
       const next = Object.assign({}, s);

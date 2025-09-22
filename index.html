@@ -1,10 +1,9 @@
-
 <!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Asistencia de Estudiantes — VERSIÓN DE MUESTRA</title>
+    <title>Asistencia de Estudiantes</title>
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -13,7 +12,7 @@
     <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#24496e" />
 
-    <!-- SheetJS -->
+    <!-- SheetJS (solo para exportar .xlsx locales) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin></script>
 
     <style>
@@ -24,104 +23,49 @@
         --salmon:#da6863;
       }
       body{ background:var(--crema); }
-      /* Cinta de versión de muestra */
-      .ribbon {
-        position: fixed;
-        top: 12px;
-        right: -40px;
-        transform: rotate(45deg);
-        background: #1e3a5f;
-        color: #fff;
-        padding: 8px 60px;
-        font-weight: 800;
-        letter-spacing: .08em;
-        z-index: 1000;
-        box-shadow: 0 6px 12px rgba(0,0,0,.2);
-      }
-      .trial-watermark{
-        position: fixed;
-        left: 0; right: 0; bottom: 12px;
-        text-align: center;
-        color: #1e3a5f;
-        opacity: .35;
-        font-weight: 800;
-        letter-spacing: .12em;
-        z-index: 999;
-        pointer-events: none;
-      }
     </style>
   </head>
   <body class="min-h-dvh text-slate-900">
-    <div class="ribbon">VERSIÓN DE MUESTRA</div>
-    <div class="trial-watermark">VERSIÓN DE MUESTRA</div>
     <div id="root"></div>
 
     <!-- React 18 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
-    <!-- Firebase SDKs (se conservan como en la versión completa) -->
+    <!-- Firebase SDKs -->
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
 
     <script>
-      // MODO PRUEBA
-      window.__TRIAL_VERSION__ = true;
+      // Tu configuración de Firebase
+      const firebaseConfig = {
+        apiKey: "AIzaSyCzgl9U2DLY16pXxvvvcJNeTshCgqfE6Y4",
+        authDomain: "pruebaasistenciapro.firebaseapp.com",
+        projectId: "pruebaasistenciapro",
+        storageBucket: "pruebaasistenciapro.firebasestorage.app",
+        messagingSenderId: "529599664915",
+        appId: "1:529599664915:web:95d12af5b78766901b40e6",
+        measurementId: "G-R0RNZKMLMJ"
+      };
+
+      // Inicializar Firebase
+      firebase.initializeApp(firebaseConfig);
     </script>
 
-    <!-- App original -->
-    <script src="app.js"></script>
-
-    <!-- Limitador de cursos para versión de prueba -->
+    
     <script>
-      (function(){
-        const LS_KEY = 'agenda_estudiantes_sin_google_v5';
-        function getCourseCount(){
-          try{
-            const s = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
-            const c = s && s.courses ? Object.keys(s.courses).length : 0;
-            return c|0;
-          }catch(_){ return 0; }
-        }
-
-        function blockIfExceeded(ev){
-          const count = getCourseCount();
-          if(count >= 1){
-            if(ev){ ev.stopImmediatePropagation(); ev.stopPropagation(); ev.preventDefault(); }
-            alert('En la VERSIÓN DE MUESTRA solo se puede cargar hasta 1 curso.');
-            return true;
-          }
-          return false;
-        }
-
-        // Capturamos clicks antes que React
-        document.addEventListener('click', function(ev){
-          const t = ev.target;
-          if(!t) return;
-          const txt = (t.innerText||'').trim().toLowerCase();
-          // Botones relevantes: "+ Nuevo curso" y "Crear curso"
-          if(txt === '+ nuevo curso' || txt === 'crear curso'){
-            blockIfExceeded(ev);
-          }
-        }, true); // captura
-
-        // Observador para poner leyenda "VERSIÓN DE MUESTRA" en el header
-        const obs = new MutationObserver(() => {
-          const hdr = document.querySelector('header .tracking-tight');
-          if(hdr && !document.getElementById('trial-tag')){
-            const tag = document.createElement('span');
-            tag.id = 'trial-tag';
-            tag.className = 'ml-3 text-xs font-bold px-2 py-1 rounded-full';
-            tag.style.background = '#f0eaf5';
-            tag.style.color = '#6c467e';
-            tag.textContent = 'VERSIÓN DE MUESTRA';
-            hdr.parentNode.appendChild(tag);
-          }
-        });
-        obs.observe(document.documentElement, { childList:true, subtree:true });
-      })();
+      // Config de autenticación (editable)
+      window.USERS_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQOIYDnMQQtRVcPNPFnfmvVWiqFFqXjslfLjwq0totnyRFWLmQBfoiHS7rFqx2fnaqQMd7-RswWKOVe/pub?output=csv";
+      // Si luego creás un Web App de Apps Script para modificar/recuperar contraseñas,
+      // poné la URL acá. Si está vacío, se usa el modo "mailto" al admin.
+      window.PASSWORD_API_URL = "https://script.google.com/macros/s/AKfycbx7_eYheJlTi3R8m45AyD2qwMXg2GwXMyRfoKNOiYenqYwGbOhzYg9pj0zV8oKBCsS2/exec";
+      // Email del admin para pedidos de recuperación (usado en modo mailto)
+      window.SUPPORT_EMAIL = "docentxsbrown@gmail.com";
     </script>
+
+    <!-- Tu app -->
+    <script src="app.js"></script>
 
     <script>
       if ('serviceWorker' in navigator) {
@@ -143,8 +87,9 @@
             ☕ Bancanos con un cafecito
           </a>
         </div>
+        <!-- Nuevo botón: Exportar / Importar (después del cafecito) -->
         <div class="mt-4 text-center">
-          <button onclick="window.__openExport && window.__openExport()"
+          <button onclick="window.__openExport()"
                   class="inline-block px-5 py-3 rounded-2xl text-white font-semibold shadow"
                   style="background:var(--azul)">
             📂 Exportar / Importar
