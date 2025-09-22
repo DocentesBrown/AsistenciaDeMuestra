@@ -1,5 +1,5 @@
-// SW para la versión DEMO
-const CACHE = 'agenda-demo-v1';
+// Service Worker: cache-first con actualización en segundo plano simple
+const CACHE = 'agenda-cache-v1';
 const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {

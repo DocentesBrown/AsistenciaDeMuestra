@@ -1,9 +1,10 @@
+
 <!doctype html>
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tomador de lista — MUESTRA DE PRUEBA</title>
+    <title>Asistencia de Estudiantes — VERSIÓN DE MUESTRA</title>
 
     <!-- Tailwind -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,30 +24,104 @@
         --salmon:#da6863;
       }
       body{ background:var(--crema); }
-      .watermark{
+      /* Cinta de versión de muestra */
+      .ribbon {
         position: fixed;
-        bottom: 16px;
-        right: 16px;
-        z-index: 50;
-        opacity: .85;
+        top: 12px;
+        right: -40px;
+        transform: rotate(45deg);
+        background: #1e3a5f;
+        color: #fff;
+        padding: 8px 60px;
+        font-weight: 800;
+        letter-spacing: .08em;
+        z-index: 1000;
+        box-shadow: 0 6px 12px rgba(0,0,0,.2);
+      }
+      .trial-watermark{
+        position: fixed;
+        left: 0; right: 0; bottom: 12px;
+        text-align: center;
+        color: #1e3a5f;
+        opacity: .35;
+        font-weight: 800;
+        letter-spacing: .12em;
+        z-index: 999;
         pointer-events: none;
       }
     </style>
   </head>
   <body class="min-h-dvh text-slate-900">
+    <div class="ribbon">VERSIÓN DE MUESTRA</div>
+    <div class="trial-watermark">VERSIÓN DE MUESTRA</div>
     <div id="root"></div>
-    <div class="watermark">
-      <span class="inline-block bg-[#24496e] text-white px-3 py-1 rounded-2xl text-xs font-semibold tracking-wide shadow">
-        MUESTRA DE PRUEBA
-      </span>
-    </div>
 
     <!-- React 18 -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
-    <!-- App demo (sin login) -->
+    <!-- Firebase SDKs (se conservan como en la versión completa) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"></script>
+
+    <script>
+      // MODO PRUEBA
+      window.__TRIAL_VERSION__ = true;
+    </script>
+
+    <!-- App original -->
     <script src="app.js"></script>
+
+    <!-- Limitador de cursos para versión de prueba -->
+    <script>
+      (function(){
+        const LS_KEY = 'agenda_estudiantes_sin_google_v5';
+        function getCourseCount(){
+          try{
+            const s = JSON.parse(localStorage.getItem(LS_KEY)||'{}');
+            const c = s && s.courses ? Object.keys(s.courses).length : 0;
+            return c|0;
+          }catch(_){ return 0; }
+        }
+
+        function blockIfExceeded(ev){
+          const count = getCourseCount();
+          if(count >= 1){
+            if(ev){ ev.stopImmediatePropagation(); ev.stopPropagation(); ev.preventDefault(); }
+            alert('En la VERSIÓN DE MUESTRA solo se puede cargar hasta 1 curso.');
+            return true;
+          }
+          return false;
+        }
+
+        // Capturamos clicks antes que React
+        document.addEventListener('click', function(ev){
+          const t = ev.target;
+          if(!t) return;
+          const txt = (t.innerText||'').trim().toLowerCase();
+          // Botones relevantes: "+ Nuevo curso" y "Crear curso"
+          if(txt === '+ nuevo curso' || txt === 'crear curso'){
+            blockIfExceeded(ev);
+          }
+        }, true); // captura
+
+        // Observador para poner leyenda "VERSIÓN DE MUESTRA" en el header
+        const obs = new MutationObserver(() => {
+          const hdr = document.querySelector('header .tracking-tight');
+          if(hdr && !document.getElementById('trial-tag')){
+            const tag = document.createElement('span');
+            tag.id = 'trial-tag';
+            tag.className = 'ml-3 text-xs font-bold px-2 py-1 rounded-full';
+            tag.style.background = '#f0eaf5';
+            tag.style.color = '#6c467e';
+            tag.textContent = 'VERSIÓN DE MUESTRA';
+            hdr.parentNode.appendChild(tag);
+          }
+        });
+        obs.observe(document.documentElement, { childList:true, subtree:true });
+      })();
+    </script>
 
     <script>
       if ('serviceWorker' in navigator) {

@@ -1,14 +1,22 @@
 {
-  "name": "Tomador de lista — MUESTRA",
-  "short_name": "MUESTRA",
-  "description": "Versión de prueba con un solo curso y sin login.",
+  "name": "Asistencia de Estudiantes — VERSIÓN DE MUESTRA",
+  "short_name": "Asistencia (Muestra)",
+  "description": "Tomar lista: Presente/Ausente/Revisar. Optimizada para celular.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#f3efdc",
-  "theme_color": "#24496e",
+  "background_color": "#0f172a",
+  "theme_color": "#0ea5e9",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
   ]
 }
