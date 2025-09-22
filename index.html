@@ -70,37 +70,6 @@
       window.__TRIAL_VERSION__ = true;
     </script>
 
-    
-    <!-- Login obligatorio para versión de prueba -->
-    <div id="login-screen" class="fixed inset-0 flex items-center justify-center bg-[var(--crema)] z-[2000]">
-      <div class="bg-white rounded-2xl shadow-xl p-8 w-80">
-        <h2 class="text-xl font-bold mb-4 text-center text-[var(--azul)]">Versión de Muestra</h2>
-        <div class="space-y-3">
-          <input id="login-user" type="text" placeholder="Usuario" class="w-full p-2 border rounded"/>
-          <input id="login-pass" type="password" placeholder="Contraseña" class="w-full p-2 border rounded"/>
-          <button id="login-btn" class="w-full py-2 rounded bg-[var(--azul)] text-white font-semibold">Ingresar</button>
-          <p id="login-error" class="text-red-600 text-sm hidden text-center">Usuario o clave incorrectos</p>
-        </div>
-      </div>
-    </div>
-
-    <script>
-      (function(){
-        const allowedUser = "MUESTRA";
-        const allowedPass = "1234";
-        const btn = document.getElementById("login-btn");
-        btn.addEventListener("click", function(){
-          const u = document.getElementById("login-user").value.trim();
-          const p = document.getElementById("login-pass").value.trim();
-          if(u === allowedUser && p === allowedPass){
-            document.getElementById("login-screen").style.display="none";
-          } else {
-            document.getElementById("login-error").classList.remove("hidden");
-          }
-        });
-      })();
-    </script>
-
     <!-- App original -->
     <script src="app.js"></script>
 
