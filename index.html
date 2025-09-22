@@ -9,7 +9,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <!-- Manifest -->
-    <link rel="manifest" href="manifest-demo.json" />
+    <link rel="manifest" href="manifest.json" />
     <meta name="theme-color" content="#24496e" />
 
     <!-- SheetJS (para exportar .xlsx locales) -->
@@ -47,11 +47,11 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
 
     <!-- App demo (sin login) -->
-    <script src="app-demo.js"></script>
+    <script src="app.js"></script>
 
     <script>
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('./sw-demo.js').catch(()=>{});
+        navigator.serviceWorker.register('./sw.js').catch(()=>{});
       }
     </script>
 
