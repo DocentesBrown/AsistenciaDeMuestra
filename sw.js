@@ -1,6 +1,6 @@
 // SW para la versión DEMO
 const CACHE = 'agenda-demo-v1';
-const CORE_ASSETS = ['./', './index-demo.html', './app-demo.js', './manifest-demo.json'];
+const CORE_ASSETS = ['./', './index.html', './app.js', './manifest.json'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
